@@ -1,78 +1,3 @@
-<template>
-  <component
-    :is="component"
-    v-if="view && results"
-    v-bind="props"
-  >
-    <!-- Scoped slot: Header -->
-    <template v-slot:header>
-      <span
-        v-for="header of headers"
-        :key="header.id"
-        v-html="header.content.value"
-      />
-    </template>
-
-    <!-- Scoped slot: Attachments before -->
-    <template v-if="attachments_before" v-slot:attachments_before>
-      <druxt-view
-        v-for="displayId of attachments_before"
-        :key="displayId"
-        :display-id="displayId"
-        :type="type"
-        :uuid="uuid"
-        :view-id="viewId"
-      />
-    </template>
-
-    <!-- Scoped slot: Results -->
-    <template v-slot:results="options">
-      <druxt-entity
-        v-for="result of results"
-        v-bind="{
-          type: result.type,
-          uuid: result.id,
-          mode,
-          ...options
-        }"
-        :key="result.id"
-      />
-    </template>
-
-    <!-- Scoped slot: Attachments after -->
-    <template v-if="attachments_after" v-slot:attachments_after>
-      <druxt-view
-        v-for="displayId of attachments_after"
-        :key="displayId"
-        :display-id="displayId"
-        :type="type"
-        :uuid="uuid"
-        :view-id="viewId"
-      />
-    </template>
-
-    <template>
-      <!-- Header -->
-      <span
-        v-for="header of headers"
-        :key="header.id"
-        v-html="header.content.value"
-      />
-
-      <!-- Results -->
-      <druxt-entity
-        v-for="result of results"
-        v-bind="{
-          type: result.type,
-          uuid: result.id,
-          mode
-        }"
-        :key="result.id"
-      />
-    </template>
-  </component>
-</template>
-
 <script>
 import { mapActions } from 'vuex'
 
@@ -316,6 +241,60 @@ export default {
     async displayId() {
       await this.fetch()
     }
+  },
+
+  render: function (h) {
+    // Loading.
+    if (this.$fetchState.pending) {
+      return h('div')
+    }
+
+    // Header.
+    const header = Object.entries(this.headers).map(([ id, header ]) => {
+      return h('span', { domProps: { innerHTML: header.content.value }})
+    })
+
+    // Results.
+    const results = this.results.map(result => {
+      const { component, propsData } = this.getResultComponent(this.$attrs)
+
+      const child = h('DruxtEntity', {
+        props: {
+          type: result.type,
+          uuid: result.id,
+          mode: this.mode
+        }
+      })
+
+      return h(component, { props: propsData }, [child])
+    })
+
+    // Attachments.
+    const attachments = { before: [], after: [] }
+    Object.entries(this.view.attributes.display).map(([ displayId, display ]) => {
+      if (display.display_plugin === 'attachment' && display.display_options.displays[this.displayId]) {
+        attachments[display.display_options.attachment_position].push(h('DruxtView', {
+          props: {
+            displayId,
+            uuid: this.uuid,
+            viewId: this.viewId
+          }
+        }))
+      }
+    })
+
+    return h('div', [
+      h(this.component.is, {
+        props: this.component.propsData,
+        scopedSlots: {
+          default: () => [header, attachments.before, results, attachments.after],
+          header: () => header,
+          attachments_before: () => attachments.before,
+          results: () => results,
+          attachments_after: () => attachments.after,
+        }
+      })]
+    )
   }
 }
 </script>
